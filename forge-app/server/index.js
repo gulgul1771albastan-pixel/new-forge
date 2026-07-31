@@ -7,6 +7,8 @@ const { initDb } = require('./db');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
+const searchRoutes = require('./routes/search');
+const googleSearchRoutes = require('./routes/google-search');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +20,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/posts', commentRoutes); // handles /api/posts/:postId/comments
+app.use('/api/search', searchRoutes);
+app.use('/api/search/google', googleSearchRoutes);
 
 // Serve the frontend
 app.use(express.static(path.join(__dirname, '..', 'public')));
