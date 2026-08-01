@@ -169,6 +169,13 @@
   .image-strip-item{ aspect-ratio:1; border-radius:6px; overflow:hidden; background:var(--iron-800); border:1px solid var(--line); cursor:pointer; }
   .image-strip-item img{ width:100%; height:100%; object-fit:cover; }
 
+  .video-strip{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:32px; }
+  .video-strip-item{ display:block; border-radius:8px; overflow:hidden; background:var(--iron-800); border:1px solid var(--line); text-decoration:none; transition:border-color .15s; }
+  .video-strip-item:hover{ border-color:var(--ember-500); }
+  .video-strip-item img{ width:100%; aspect-ratio:16/9; object-fit:cover; display:block; }
+  .video-strip-title{ font-size:12.5px; color:var(--text-100); font-weight:600; padding:8px 10px 2px; line-height:1.35; }
+  .video-strip-channel{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--text-600); padding:0 10px 10px; }
+
   .article-wrap{ max-width:700px; margin:0 auto; }
   .back-link{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--text-600); display:inline-flex; align-items:center; gap:6px; margin-bottom:24px; cursor:pointer; transition:color .15s; }
   .back-link:hover{ color:var(--ember-300); }
@@ -261,6 +268,7 @@
     .nav{ gap:12px; }
     .search-wrap{ max-width:none; }
     .image-strip{ grid-template-columns:repeat(2,1fr); }
+    .video-strip{ grid-template-columns:repeat(2,1fr); }
     .result-item{ flex-direction:column; }
     .swipe-stage{ height:400px; }
   }
@@ -1284,14 +1292,133 @@ async function renderSearchPage(query){
   container.innerHTML = `
     <div class="search-page-query">Results for <b>${escapeHtml(query)}</b></div>
     <div class="instant-answer" id="ia-box"><div class="loading-line">Looking up a summary…</div></div>
+    <div class="result-section-title">Web results</div>
+    <div id="google-web-results"><div class="loading-line">Searching the web…</div></div>
+    <div class="result-section-title">News</div>
+    <div id="google-news-results"><div class="loading-line">Searching news…</div></div>
     <div class="result-section-title">Images</div>
-    <div class="image-strip" id="image-strip"><div class="loading-line">Loading images…</div></div>
-    <div class="result-section-title">Articles</div>
+    <div class="image-strip" id="google-image-strip"><div class="loading-line">Loading images…</div></div>
+    <div class="result-section-title">Videos</div>
+    <div class="video-strip" id="video-strip"><div class="loading-line">Loading videos…</div></div>
+    <div class="result-section-title">From Forge</div>
+    <div id="forge-results"><div class="loading-line">Checking Forge posts…</div></div>
+    <div class="result-section-title">Wikipedia</div>
     <div id="article-results"><div class="loading-line">Searching Wikipedia…</div></div>
   `;
 
   loadInstantAnswer(query);
+  loadGoogleWebResults(query);
+  loadGoogleNewsResults(query);
+  loadGoogleImageResults(query);
+  loadYoutubeResults(query);
+  loadForgeResults(query);
   loadWikiResults(query);
+}
+
+function googleUnavailableNotice(what){
+  return `<div style="color:var(--text-600); font-size:13px; padding:8px 0;">Google ${what} search isn't set up yet on the server.</div>`;
+}
+
+async function loadGoogleWebResults(query){
+  const box = document.getElementById('google-web-results');
+  try{
+    const { results, error } = await Api.request('/search/google/web?q=' + encodeURIComponent(query));
+    if(error && (!results || results.length===0)){ box.innerHTML = googleUnavailableNotice('web'); return; }
+    if(!results || results.length===0){ box.innerHTML = `<div style="color:var(--text-600); font-size:13px;">No web results found.</div>`; return; }
+    box.innerHTML = results.map(r => `
+      <div class="result-item">
+        ${r.thumbnail ? `<div class="result-thumb"><img src="${escapeHtml(r.thumbnail)}" loading="lazy"></div>` : ''}
+        <div class="result-body">
+          <div class="result-url">${escapeHtml(r.displayLink)}</div>
+          <h3>${escapeHtml(r.title)}</h3>
+          <p>${escapeHtml(r.snippet||'')}</p>
+          <a class="result-open-link" href="${escapeHtml(r.link)}" target="_blank" rel="noopener">Visit site ↗</a>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ box.innerHTML = `<div style="color:var(--text-600); font-size:13px;">Couldn't load web results.</div>`; }
+}
+
+async function loadGoogleNewsResults(query){
+  const box = document.getElementById('google-news-results');
+  try{
+    const { results, error } = await Api.request('/search/google/news?q=' + encodeURIComponent(query));
+    if(error && (!results || results.length===0)){ box.innerHTML = googleUnavailableNotice('news'); return; }
+    if(!results || results.length===0){ box.innerHTML = `<div style="color:var(--text-600); font-size:13px;">No news results found.</div>`; return; }
+    box.innerHTML = results.map(r => `
+      <div class="result-item">
+        ${r.thumbnail ? `<div class="result-thumb"><img src="${escapeHtml(r.thumbnail)}" loading="lazy"></div>` : ''}
+        <div class="result-body">
+          <div class="result-url">${escapeHtml(r.displayLink)}</div>
+          <h3>${escapeHtml(r.title)}</h3>
+          <p>${escapeHtml(r.snippet||'')}</p>
+          <a class="result-open-link" href="${escapeHtml(r.link)}" target="_blank" rel="noopener">Read article ↗</a>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){ box.innerHTML = `<div style="color:var(--text-600); font-size:13px;">Couldn't load news.</div>`; }
+}
+
+async function loadGoogleImageResults(query){
+  const strip = document.getElementById('google-image-strip');
+  try{
+    const { images, error } = await Api.request('/search/google/images?q=' + encodeURIComponent(query));
+    if(error && (!images || images.length===0)){ strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">Image search isn't set up yet.</div>`; return; }
+    if(!images || images.length===0){ strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">No images found.</div>`; return; }
+    strip.innerHTML = images.map(img => `
+      <a class="image-strip-item" href="${escapeHtml(img.sourcePage||img.imageUrl)}" target="_blank" rel="noopener" title="${escapeHtml(img.title||'')}">
+        <img src="${escapeHtml(img.thumbnail)}" loading="lazy">
+      </a>
+    `).join('');
+  }catch(e){ strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">Couldn't load images.</div>`; }
+}
+
+async function loadYoutubeResults(query){
+  const strip = document.getElementById('video-strip');
+  try{
+    const { videos, error } = await Api.request('/search/youtube?q=' + encodeURIComponent(query));
+    if(error && (!videos || videos.length===0)){
+      strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">Video search isn't set up yet.</div>`;
+      return;
+    }
+    if(!videos || videos.length===0){
+      strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">No videos found.</div>`;
+      return;
+    }
+    strip.innerHTML = videos.map(v => `
+      <a class="video-strip-item" href="${escapeHtml(v.url)}" target="_blank" rel="noopener" title="${escapeHtml(v.title)}">
+        <img src="${escapeHtml(v.thumbnail)}" loading="lazy">
+        <div class="video-strip-title">${escapeHtml(v.title)}</div>
+        <div class="video-strip-channel">${escapeHtml(v.channel)}</div>
+      </a>
+    `).join('');
+  }catch(e){
+    strip.innerHTML = `<div style="color:var(--text-600); font-size:13px; grid-column:1/-1;">Couldn't load videos.</div>`;
+  }
+}
+
+async function loadForgeResults(query){
+  const box = document.getElementById('forge-results');
+  try{
+    const { posts } = await Api.request('/search/forge-posts?q=' + encodeURIComponent(query));
+    if(!posts || posts.length===0){
+      box.innerHTML = `<div style="color:var(--text-600); font-size:13px; padding:8px 0;">No Forge posts about this yet — be the first to write one.</div>`;
+      return;
+    }
+    box.innerHTML = posts.map(p => `
+      <div class="result-item">
+        ${p.image_url ? `<div class="result-thumb"><img src="${escapeHtml(p.image_url)}" loading="lazy"></div>` : ''}
+        <div class="result-body">
+          <h3>${escapeHtml(p.title)}</h3>
+          <div class="result-url">@${escapeHtml(p.username)} · Forge · ${escapeHtml(p.topic||'')}</div>
+          <p>${escapeHtml((p.body||'').slice(0,200))}</p>
+          <a class="result-open-link" onclick="router.go('/post/srv-${p.id}')">Read on Forge ↗</a>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    box.innerHTML = `<div style="color:var(--text-600); font-size:13px;">Couldn't load Forge posts.</div>`;
+  }
 }
 
 async function loadInstantAnswer(query){
@@ -2872,7 +2999,7 @@ function jmAskJarvis(question) {
     + 'Answer with rich local knowledge. Be specific and use emojis naturally. '
     + 'Keep answers to 3-6 sentences unless more is needed. '
     + 'You are Forge Maps AI, built by Black Gold Studios. Never mention underlying AI models.';
-  var groqKey = window.GROQ_KEY || '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';
+  var groqKey = window.GROQ_KEY || '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';
   var groqUrl = window.GROQ_URL || 'https://api.groq.com/openai/v1/chat/completions';
   _jmChatHistory.push({ role:'user', content:question });
   if (_jmChatHistory.length > 12) _jmChatHistory = _jmChatHistory.slice(-12);
