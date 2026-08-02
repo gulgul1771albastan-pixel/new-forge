@@ -18,7 +18,6 @@ async function searxSearch(query, extraParams = {}) {
     headers: { 'Accept': 'application/json' }
   });
   const text = await res.text();
-  console.log('SearXNG raw response (first 300 chars):', text.slice(0, 300));
   let data;
   try {
     data = JSON.parse(text);
@@ -34,6 +33,14 @@ async function searxSearch(query, extraParams = {}) {
     throw err;
   }
   return data;
+}
+
+function safeHostname(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (e) {
+    return '';
+  }
 }
 
 // GET /api/search/google/web?q=...  -> web results via SearXNG
@@ -101,13 +108,5 @@ router.get('/news', async (req, res) => {
     res.status(err.status || 500).json({ error: err.message, results: [] });
   }
 });
-
-function safeHostname(url) {
-  try {
-    return new URL(url).hostname;
-  } catch (e) {
-    return '';
-  }
-}
 
 module.exports = router;
